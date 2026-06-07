@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance System</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background: #f4f6f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            width: 350px;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .profile {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid #ddd;
+            margin-bottom: 15px;
+        }
+
+        h2 {
+            margin-bottom: 10px;
+        }
+
+        .status {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .present {
+            background: #28a745;
+            color: white;
+        }
+
+        .leave {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 8px;
+            display: none;
+            font-weight: bold;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .info {
+            margin-top: 15px;
+            color: #555;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="container">
+
+        <img id="photo" class="profile" src="https://i.pravatar.cc/150" alt="Employee">
+
+        <h2 id="name">Employee</h2>
+
+        <p class="status">
+            Mark your attendance for today
+        </p>
+
+        <button class="btn present" onclick="markAttendance('Present')">
+            ✅ Present
+        </button>
+
+        <button class="btn leave" onclick="markAttendance('Leave')">
+            ❌ Not Present
+        </button>
+
+        <div id="result" class="result"></div>
+
+        <div class="info">
+            Date:
+            <span id="today"></span>
+        </div>
+
+        <div class="info" style="margin-top:12px; text-align:left;">
+            Remaining Leave:
+            <span id="remaining">—</span>
+        </div>
+
+        <div style="margin-top:10px; text-align:left; width:100%;">
+            <button class="btn" style="background:#007bff; color:white;" onclick="displayRemainingLeaves()">Refresh Leaves</button>
+            <button class="btn" style="background:#6c757d; color:white; margin-top:8px;" onclick="toggleSQL()">Show/Hide SQL Samples</button>
+
+            <div id="sqlSamples" style="display:none; margin-top:8px; text-align:left; font-size:13px;">
+                <strong>MySQL:</strong>
+                <pre id="sqlMysql" style="white-space:pre-wrap; background:#f1f1f1; padding:8px; border-radius:6px;"></pre>
+                <strong>Postgres:</strong>
+                <pre id="sqlPg" style="white-space:pre-wrap; background:#f1f1f1; padding:8px; border-radius:6px;"></pre>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+
+        const params = new URLSearchParams(window.location.search);
+
+        const employeeName =
+            params.get("name") || "Muhammad Sinan";
+
+        const employeePhoto =
+            params.get("photo") ||
+            "https://i.pravatar.cc/150";
+
+        document.getElementById("name").innerText =
+            employeeName;
+
+        document.getElementById("photo").src =
+            employeePhoto;
+
+        document.getElementById("today").innerText =
+            new Date().toLocaleDateString();
+
+        function markAttendance(status) {
+
+            const result =
+                document.getElementById("result");
+
+            result.style.display = "block";
+            result.classList.add("success");
+
+            result.innerHTML =
+                `
+    Attendance Recorded Successfully<br><br>
+    Employee : ${employeeName}<br>
+    Status : ${status}<br>
+    Date : ${new Date().toLocaleDateString()}
+    `;
+
+            console.log({
+                employee: employeeName,
+                attendance: status,
+                date: new Date().toLocaleDateString()
+            });
+
+            // Later:
+            // Send data to Google Sheets
+            // using Google Apps Script
+
+        }
+
+        // ---- Remaining leave helper ----
+        const employeeId = params.get("id") || 123;
+
+        function daysInclusive(start, end) {
+            const s = new Date(start);
+            const e = new Date(end);
+            return Math.floor((e - s) / (1000 * 60 * 60 * 24)) + 1;
+        }
+
+        async function displayRemainingLeaves() {
+
+    const out = document.getElementById('remaining');
+
+    out.innerHTML = "Loading leave details...";
+
+    try {
+
+        const res = await fetch(
+            `/api/remaining_leave?employee_id=${employeeId}`
+        );
+
+        if (!res.ok) {
+            throw new Error("API Error");
+        }
+
+        const data = await res.json();
+
+        const available = data.leaves_available || 0;
+        const used = data.used_days || 0;
+        const quota = data.annual_leave_quota || 0;
+
+        out.innerHTML = `
+            📅 Annual Leave Quota: <b>${quota}</b><br>
+            ✅ Leave Used: <b>${used}</b><br>
+            🟢 You can still take
+            <b>${available}</b> more leave day(s)
+        `;
+
+    } catch (err) {
+
+        // Fallback demo data
+
+        const employee = {
+            id: Number(employeeId),
+            annual_leave_quota: 20
+        };
+
+        const leaveRequests = [
+            {
+                start_date: '2026-01-10',
+                end_date: '2026-01-12',
+                status: 'approved'
+            },
+            {
+                start_date: '2026-03-05',
+                end_date: '2026-03-05',
+                status: 'approved'
+            }
+        ];
+
+        const year = new Date().getFullYear();
+
+        const used = leaveRequests
+            .filter(
+                l =>
+                    l.status === 'approved' &&
+                    new Date(l.start_date).getFullYear() === year
+            )
+            .reduce(
+                (sum, l) =>
+                    sum + daysInclusive(
+                        l.start_date,
+                        l.end_date
+                    ),
+                0
+            );
+
+        const available =
+            Math.max(
+                employee.annual_leave_quota - used,
+                0
+            );
+
+        out.innerHTML = `
+            📅 Annual Leave Quota:
+            <b>${employee.annual_leave_quota}</b><br>
+
+            ✅ Leave Used:
+            <b>${used}</b><br>
+
+            🟢 You can still take
+            <b>${available}</b> more leave day(s)
+        `;
+    }
+
+    const mysql =
+        "SELECT e.id, e.name, GREATEST(e.annual_leave_quota - COALESCE(SUM(DATEDIFF(l.end_date, l.start_date) + 1),0), 0) AS leaves_available FROM employees e LEFT JOIN leave_requests l ON l.employee_id = e.id AND l.status = 'approved' AND YEAR(l.start_date) = YEAR(CURDATE()) WHERE e.id = " +
+        employeeId +
+        " GROUP BY e.id, e.name, e.annual_leave_quota;";
+
+    const pg =
+        "SELECT e.id, e.name, GREATEST(e.annual_leave_quota - COALESCE(SUM((l.end_date - l.start_date) + 1),0), 0) AS leaves_available FROM employees e LEFT JOIN leave_requests l ON l.employee_id = e.id AND l.status = 'approved' AND EXTRACT(YEAR FROM l.start_date) = EXTRACT(YEAR FROM CURRENT_DATE) WHERE e.id = " +
+        employeeId +
+        " GROUP BY e.id, e.name, e.annual_leave_quota;";
+
+    document.getElementById('sqlMysql').innerText = mysql;
+    document.getElementById('sqlPg').innerText = pg;
+}
+
+    </script>
+
+</body>
+
+</html>
